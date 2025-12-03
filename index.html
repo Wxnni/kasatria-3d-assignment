@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <title>3D Data Visualiser — Periodic Table Style</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <!-- Add import map to resolve bare imports like "three" used by example modules -->
   <script type="importmap">
     {
       "imports": {
@@ -15,13 +14,24 @@
     }
   </script>
   <style>
-    html,body { height:100%; margin:0; font-family: Arial, Helvetica, sans-serif; background:#111; color:#fff; }
-    #container { position: absolute; width: 100%; height: 100%; overflow: hidden; }
+    html,body { 
+      height:100%; 
+      margin:0; 
+      font-family: Arial, Helvetica, sans-serif; 
+      background:#111; 
+      color:#fff; 
+    }
+    #container { 
+      position: absolute; 
+      width: 100%; 
+      height: 100%; 
+      overflow: hidden; 
+    }
     .element {
       width: 160px; height: 160px;
       box-sizing: border-box;
       border-radius: 8px;
-      background: #1a0e0e; /* dark background for contrast */
+      background: #1a0e0e; 
       color: #fff;
       padding: 8px;
       font-size: 12px;
@@ -32,9 +42,24 @@
       border: 3px solid transparent;
       transition: border-color 0.2s, background 0.2s;
     }
-    .name { font-weight:700; font-size:14px; color:#fff; }
-    .meta { font-size:12px; color:#fff; opacity:0.95; }
-    .worth { font-weight:700; font-size:13px; color:#111; padding: 6px; border-radius:6px; display:inline-block; }
+    .name { 
+      font-weight:700; 
+      font-size:14px; 
+      color:#fff; 
+    }
+    .meta { 
+      font-size:12px; 
+      color:#fff; 
+      opacity:0.95; 
+    }
+    .worth { 
+      font-weight:700; 
+      font-size:13px; 
+      color:#111; 
+      padding: 6px; 
+      border-radius:6px; 
+      display:inline-block; 
+    }
     #ui {
       position: absolute;
       left: 50%;
@@ -57,7 +82,16 @@
     #ui > div[style*="margin-top"] {
       margin-top: 0 !important;
     }
-    #info { position:absolute; right:10px; top:10px; z-index:10; background: rgba(0,0,0,0.4); padding:8px; border-radius:8px; font-size:13px; }
+    #info { 
+      position:absolute; 
+      right:10px; 
+      top:10px; 
+      z-index:10; 
+      background: rgba(0,0,0,0.4); 
+      padding:8px; 
+      border-radius:8px; 
+      font-size:13px; 
+    }
     .small { font-size:12px; color:#ddd; }
     .btn {
       background: transparent;
@@ -192,14 +226,14 @@
         name: obj['Name']||obj['col0']||'',
         title: obj['Title']||obj['col1']||'',
         company: obj['Company']||obj['col2']||'',
-        netWorthRaw: obj['Net Worth']||obj['NetWorth']||obj['col3']||'', // Support both 'Net Worth' and 'NetWorth'
+        netWorthRaw: obj['Net Worth']||obj['NetWorth']||obj['col3']||'', 
         raw: obj
       };
     }
 
     function parseNetWorth(v){
       if(!v) return 0;
-      v = v.toString().replace(/\s+/g, '').trim(); // Remove all spaces
+      v = v.toString().replace(/\s+/g, '').trim(); 
       const mK = v.match(/^([\d.,]+)K$/i);
       const mM = v.match(/^([\d.,]+)M$/i);
       if(mK) return Math.round(parseFloat(mK[1].replace(/,/g,''))*1000);
@@ -215,7 +249,7 @@
       objects=[]; targets={table:[],sphere:[],helix:[],grid:[]};
       list.forEach((item,index)=>{
         const el=document.createElement('div'); el.className='element';
-        // Top row: Country (left), Age (right)
+
         const topRow = document.createElement('div');
         topRow.style.display = 'flex';
         topRow.style.justifyContent = 'space-between';
@@ -227,7 +261,7 @@
         const age = document.createElement('span');
         age.textContent = (item.raw['Age'] || '');
         topRow.append(country, age);
-        // Photo
+
         const photo = document.createElement('img');
         photo.src = item.raw['Photo'] || '';
         photo.alt = item.name;
@@ -237,21 +271,30 @@
         photo.style.borderRadius = '8px';
         photo.style.display = 'block';
         photo.style.margin = '10px auto 6px auto';
-        // Name
+        
         const name = document.createElement('div');
         name.className = 'name';
         name.textContent = item.name || '(No name)';
         name.style.textAlign = 'center';
-        // Interest
+        
         const interest = document.createElement('div');
         interest.className = 'meta';
         interest.textContent = item.raw['Interest'] || '';
         interest.style.textAlign = 'center';
-        // Color by net worth
+        
         let netNum = parseNetWorth(item.netWorthRaw);
-        if(netNum<100000){ el.style.borderColor='#EF3022'; el.style.background='#1a0e0e'; }
-        else if(netNum<200000){ el.style.borderColor='#FDCA35'; el.style.background='#222006'; }
-        else{ el.style.borderColor='#3A9F48'; el.style.background='#0e1a13'; }
+        if(netNum<100000){ 
+          el.style.borderColor='#EF3022';
+          el.style.background='#1a0e0e'; 
+          }
+        else if(netNum<200000){
+           el.style.borderColor='#FDCA35';
+           el.style.background='#222006'; 
+          }
+        else{ 
+          el.style.borderColor='#3A9F48'; 
+          el.style.background='#0e1a13'; 
+        }
         el.append(topRow, photo, name, interest);
         const object = new CSS3DObject(el);
         object.position.set(Math.random()*4000-2000, Math.random()*4000-2000, Math.random()*4000-2000);
@@ -264,9 +307,39 @@
       transform(targets.table,2000);
     }
 
-    function createTableTargets(n){ const cols=20, rows=10, gapX=200, gapY=160; for(let i=0;i<n;i++){ const row=Math.floor(i/cols), col=i%cols; const o=new THREE.Object3D(); o.position.set((col-(cols/2-0.5))*gapX,((rows/2-0.5)-row)*gapY,0); targets.table.push(o); } }
-    function createSphereTargets(n){ const radius=800; for(let i=0;i<n;i++){ const phi=Math.acos(-1+(2*i)/n), theta=Math.sqrt(n*Math.PI)*phi; const o=new THREE.Object3D(); o.position.set(radius*Math.cos(theta)*Math.sin(phi), radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(phi)); o.lookAt(new THREE.Vector3(0,0,0)); targets.sphere.push(o); } }
-    function createDoubleHelixTargets(n){ const sep=120, turns=6, spacing=12; for(let i=0;i<n;i++){ const o=new THREE.Object3D(); const t=i/n, phi=t*Math.PI*2*turns; const strand=(i%2===0)?1:-1; const r=300+(strand*sep); o.position.set(Math.cos(phi)*r, (i-n/2)*spacing, Math.sin(phi)*r); o.lookAt(new THREE.Vector3(0,o.position.y,0)); targets.helix.push(o); } }
+    function createTableTargets(n){ const cols=20, rows=10, gapX=200, gapY=160;
+       for(let i=0;i<n;i++){
+         const row=Math.floor(i/cols), col=i%cols; 
+         const o=new THREE.Object3D();
+          o.position.set((col-(cols/2-0.5))*gapX,((rows/2-0.5)-row)*gapY,0);
+           targets.table.push(o); 
+          }
+         }
+
+    function createSphereTargets(n){ 
+      const radius=800;
+       for(let i=0;i<n;i++){
+         const phi=Math.acos(-1+(2*i)/n), theta=Math.sqrt(n*Math.PI)*phi;
+          const o=new THREE.Object3D();
+           o.position.set(radius*Math.cos(theta)*Math.sin(phi), radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(phi));
+            o.lookAt(new THREE.Vector3(0,0,0));
+            targets.sphere.push(o); 
+            }
+           }
+
+    function createDoubleHelixTargets(n){ 
+      const sep=120, turns=6, spacing=12;
+       for(let i=0;i<n;i++){ 
+        const o=new THREE.Object3D();
+         const t=i/n, phi=t*Math.PI*2*turns;
+          const strand=(i%2===0)?1:-1;
+           const r=300+(strand*sep);
+            o.position.set(Math.cos(phi)*r, (i-n/2)*spacing, Math.sin(phi)*r);
+             o.lookAt(new THREE.Vector3(0,o.position.y,0));
+              targets.helix.push(o); 
+            }
+           }
+
     function createGridTargets(n){ const gx=5,gy=4,gz=10,gapX=260,gapY=200,gapZ=240; for(let i=0;i<n;i++){ const x=i%gx, y=Math.floor(i/gx)%gy, z=Math.floor(i/(gx*gy))%gz; const o=new THREE.Object3D(); o.position.set((x-(gx/2-0.5))*gapX,((gy/2-0.5)-y)*gapY,(z-(gz/2-0.5))*gapZ); targets.grid.push(o); } }
 
     function transform(targetArray,duration=2000){ const now=performance.now(); for(let i=0;i<objects.length;i++){ const obj=objects[i]; const target=targetArray[i]||new THREE.Object3D(); obj.userData.startPos={...obj.position}; obj.userData.targetPos={...target.position}; obj.userData.startTime=now; obj.userData.duration=duration; obj.userData.targetRot={x:target.rotation.x,y:target.rotation.y,z:target.rotation.z}; } }
@@ -289,11 +362,28 @@
       controls.dampingFactor = 0.08;
       controls.minDistance = 500;
       controls.maxDistance = 8000;
-      window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); cssRenderer.setSize(window.innerWidth,window.innerHeight); });
+      window.addEventListener('resize',()=>{ 
+        camera.aspect=window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix(); 
+        cssRenderer.setSize(window.innerWidth,window.innerHeight); 
+      }
+    );
       animate();
     }
 
-    function updateObjects(){ const now=performance.now(); for(let i=0;i<objects.length;i++){ const obj=objects[i]; if(!obj.userData.startTime) continue; const t=(now-obj.userData.startTime)/obj.userData.duration; const dt=Math.min(1,t); obj.position.x=obj.userData.startPos.x+(obj.userData.targetPos.x-obj.userData.startPos.x)*easeOutCubic(dt); obj.position.y=obj.userData.startPos.y+(obj.userData.targetPos.y-obj.userData.startPos.y)*easeOutCubic(dt); obj.position.z=obj.userData.startPos.z+(obj.userData.targetPos.z-obj.userData.startPos.z)*easeOutCubic(dt); obj.rotation.x += (obj.userData.targetRot.x-obj.rotation.x)*0.08; obj.rotation.y += (obj.userData.targetRot.y-obj.rotation.y)*0.08; obj.rotation.z += (obj.userData.targetRot.z-obj.rotation.z)*0.08; } }
+    function updateObjects(){ const now=performance.now();
+       for(let i=0;i<objects.length;i++){
+         const obj=objects[i];
+          if(!obj.userData.startTime) continue;
+           const t=(now-obj.userData.startTime)/obj.userData.duration; 
+           const dt=Math.min(1,t);
+            obj.position.x=obj.userData.startPos.x+(obj.userData.targetPos.x-obj.userData.startPos.x)*easeOutCubic(dt); 
+            obj.position.y=obj.userData.startPos.y+(obj.userData.targetPos.y-obj.userData.startPos.y)*easeOutCubic(dt);
+            obj.position.z=obj.userData.startPos.z+(obj.userData.targetPos.z-obj.userData.startPos.z)*easeOutCubic(dt);
+            obj.rotation.x += (obj.userData.targetRot.x-obj.rotation.x)*0.08; obj.rotation.y += (obj.userData.targetRot.y-obj.rotation.y)*0.08; 
+            obj.rotation.z += (obj.userData.targetRot.z-obj.rotation.z)*0.08; 
+          } 
+        }
     function easeOutCubic(t){ return (--t)*t*t+1; }
     function animate(){
       animationId=requestAnimationFrame(animate);
@@ -304,7 +394,7 @@
 
   </script>
 
-  <!-- Google libraries -->
+  
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
 </body>
