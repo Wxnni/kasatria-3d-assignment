@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>3D Data Visualiser — Periodic Table Style</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- Add import map to resolve bare imports like "three" used by example modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.155.0/build/three.module.js",
+        "three/": "https://unpkg.com/three@0.155.0/",
+        "three/examples/": "https://unpkg.com/three@0.155.0/examples/"
+      }
+    }
+  </script>
+  <style>
+    html,body { height:100%; margin:0; font-family: Arial, Helvetica, sans-serif; background:#111; color:#fff; }
+    #container { position: absolute; width: 100%; height: 100%; overflow: hidden; }
+    .element {
+      width: 160px; height: 120px;
+      box-sizing: border-box;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.06);
+      color: #111;
+      padding: 8px;
+      font-size: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .name { font-weight:700; font-size:14px; color:#fff; }
+    .meta { font-size:12px; color:#fff; opacity:0.95; }
+    .worth { font-weight:700; font-size:13px; color:#111; padding: 6px; border-radius:6px; display:inline-block; }
+    #ui { position: absolute; left:10px; top:10px; z-index: 10; display:flex; gap:8px; flex-direction:column; }
+    .btn { background:#222; color:#fff; padding:8px 12px; border-radius:6px; border:1px solid #333; cursor:pointer; }
+    #signin-btn { background:#4285f4; color:white; font-weight:700; border:none; }
+    #info { position:absolute; right:10px; top:10px; z-index:10; background: rgba(0,0,0,0.4); padding:8px; border-radius:8px; font-size:13px; }
+    .small { font-size:12px; color:#ddd; }
+    @media (max-width:720px) { .element { width:140px; height:110px; } }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <button id="signin-btn" class="btn">Sign in with Google</button>
+    <div style="display:flex; gap:6px;">
+      <button id="btn-table" class="btn">Table (20x10)</button>
+      <button id="btn-sphere" class="btn">Sphere</button>
+      <button id="btn-helix" class="btn">Double Helix</button>
+      <button id="btn-grid" class="btn">Grid (5x4x10)</button>
+    </div>
+    <div style="margin-top:4px;">
+      <button id="btn-refresh" class="btn">Refresh from Sheet</button>
+      <button id="btn-signout" class="btn">Sign out</button>
+    </div>
+  </div>
+
+  <div id="info">
+    <div id="user-info" class="small">Not signed in</div>
+    <div class="small">Sheet: <span id="sheet-id"></span></div>
+  </div>
+
+  <div id="container"></div>
+
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.155.0/build/three.module.js';
+    import { CSS3DRenderer, CSS3DObject } from 'https://unpkg.com/three@0.155.0/examples/jsm/renderers/CSS3DRenderer.js';
+
+    const CLIENT_ID = '380897647306-mdstj66k1808j6l077655re6pj8eu9et.apps.googleusercontent.com';
+    const API_KEY = 'AIzaSyCF7xM1M7kWKqNUKa8IHqTcLpTP08QPAvc';
+    const SPREADSHEET_ID = '18IlNzGakLyTjqskYb97pecOmxlwsyAJXyX5RAQA5mFw';
+    const SHEET_RANGE = 'Data!A1:Z200';
+
+    document.getElementById('sheet-id').textContent = SPREADSHEET_ID || 'not set';
+
+    let tokenClient, gapiInited=false, accessToken=null;
+    let objects=[], targets={table:[],sphere:[],helix:[],grid:[]};
+    let scene, camera, cssRenderer, animationId;
+
+    window.onload = () => { initThree(); setupUI(); gapiLoaded(); gisLoaded(); };
+
+    function gapiLoaded() {
+      gapi.load('client', () => {
+        gapiInited = true;
+        gapi.client.init({ apiKey: API_KEY, discoveryDocs:["https://sheets.googleapis.com/$discovery/rest?version=v4"] })
+          .then(() => console.log('gapi.client initialized'));
+      });
+    }
+
+    function gisLoaded() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        callback: (tokenResponse) => {
+          if(tokenResponse.error){ console.error(tokenResponse); return; }
+          accessToken = tokenResponse.access_token;
+          gapi.client.setToken({access_token: accessToken});
+          afterSignin();
+        }
+      });
+    }
+
+    function setupUI() {
+      document.getElementById('signin-btn').onclick = ()=>tokenClient.requestAccessToken({prompt:'consent'});
+      document.getElementById('btn-signout').onclick = signOut;
+      document.getElementById('btn-refresh').onclick = loadSheetAndBuild;
+      document.getElementById('btn-table').onclick = ()=>transformTo('table');
+      document.getElementById('btn-sphere').onclick = ()=>transformTo('sphere');
+      document.getElementById('btn-helix').onclick = ()=>transformTo('helix');
+      document.getElementById('btn-grid').onclick = ()=>transformTo('grid');
+    }
+
+    function signOut() {
+      google.accounts.oauth2.revoke(accessToken, ()=> {
+        accessToken = null;
+        gapi.client.setToken(null);
+        document.getElementById('user-info').textContent = 'Signed out';
+        alert('Signed out');
+      });
+    }
+
+    async function afterSignin() {
+      document.getElementById('user-info').textContent = 'Signed in (token acquired)';
+      await loadSheetAndBuild();
+    }
+
+    async function loadSheetAndBuild() {
+      if(!gapiInited){ alert('Google API client not ready'); return; }
+      try {
+        const response = await gapi.client.sheets.spreadsheets.values.get({ spreadsheetId:SPREADSHEET_ID, range:SHEET_RANGE });
+        const rows = response.result.values || [];
+        if(!rows.length){ alert('No data found'); return; }
+        const header = rows[0].map(h=> (h||'').trim());
+        const dataRows = rows.slice(1);
+        const list = dataRows.map(r=> mapRowToItem(r,header));
+        buildElements(list);
+      } catch(err){ console.error(err); alert('Error loading sheet'); }
+    }
+
+    function mapRowToItem(row, header) {
+      const obj = {};
+      header.forEach((key,i)=>obj[key||`col${i}`]=row[i]||'');
+      return {
+        name: obj['Name']||obj['col0']||'',
+        title: obj['Title']||obj['col1']||'',
+        company: obj['Company']||obj['col2']||'',
+        netWorthRaw: obj['Net Worth']||obj['NetWorth']||obj['col3']||'', // Support both 'Net Worth' and 'NetWorth'
+        raw: obj
+      };
+    }
+
+    function parseNetWorth(v){
+      if(!v) return 0;
+      v = v.toString().replace(/\s+/g, '').trim(); // Remove all spaces
+      const mK = v.match(/^([\d.,]+)K$/i);
+      const mM = v.match(/^([\d.,]+)M$/i);
+      if(mK) return Math.round(parseFloat(mK[1].replace(/,/g,''))*1000);
+      if(mM) return Math.round(parseFloat(mM[1].replace(/,/g,''))*1000000);
+      const cleaned = v.replace(/[^0-9.\-]/g,'');
+      const num = parseFloat(cleaned);
+      return isNaN(num)?0:Math.round(num);
+    }
+
+    function buildElements(list){
+      if(!scene) initThree();
+      objects.forEach(o=>scene.remove(o));
+      objects=[]; targets={table:[],sphere:[],helix:[],grid:[]};
+      list.forEach((item,index)=>{
+        const el=document.createElement('div'); el.className='element';
+        const name=document.createElement('div'); name.className='name'; name.textContent=item.name||'(No name)';
+        const meta=document.createElement('div'); meta.className='meta'; meta.innerHTML=`<div>${item.title||''}</div><div>${item.company||''}</div>`;
+        const worthBox=document.createElement('div'); worthBox.className='worth';
+        let netNum = parseNetWorth(item.netWorthRaw);
+        let displayWorth = item.netWorthRaw && item.netWorthRaw.trim() ? item.netWorthRaw : ('$'+(netNum?netNum.toLocaleString():'0'));
+        if(netNum===0 && item.netWorthRaw && item.netWorthRaw.trim()) {
+          console.log('Net Worth parse failed for:', item.netWorthRaw);
+          displayWorth = item.netWorthRaw;
+        }
+        worthBox.textContent=displayWorth;
+        if(netNum<100000){ el.style.background='#ff7675'; worthBox.style.background='#ffdddd'; }
+        else if(netNum<200000){ el.style.background='#ffd27f'; worthBox.style.background='#fff3e0'; }
+        else{ el.style.background='#74d39a'; worthBox.style.background='#e9fff2'; }
+        el.append(name,meta,worthBox);
+        const object = new CSS3DObject(el);
+        object.position.set(Math.random()*4000-2000, Math.random()*4000-2000, Math.random()*4000-2000);
+        scene.add(object); objects.push(object);
+      });
+      createTableTargets(objects.length);
+      createSphereTargets(objects.length);
+      createDoubleHelixTargets(objects.length);
+      createGridTargets(objects.length);
+      transform(targets.table,2000);
+    }
+
+    function createTableTargets(n){ const cols=20, rows=10, gapX=200, gapY=160; for(let i=0;i<n;i++){ const row=Math.floor(i/cols), col=i%cols; const o=new THREE.Object3D(); o.position.set((col-(cols/2-0.5))*gapX,((rows/2-0.5)-row)*gapY,0); targets.table.push(o); } }
+    function createSphereTargets(n){ const radius=800; for(let i=0;i<n;i++){ const phi=Math.acos(-1+(2*i)/n), theta=Math.sqrt(n*Math.PI)*phi; const o=new THREE.Object3D(); o.position.set(radius*Math.cos(theta)*Math.sin(phi), radius*Math.sin(theta)*Math.sin(phi), radius*Math.cos(phi)); o.lookAt(new THREE.Vector3(0,0,0)); targets.sphere.push(o); } }
+    function createDoubleHelixTargets(n){ const sep=120, turns=6, spacing=12; for(let i=0;i<n;i++){ const o=new THREE.Object3D(); const t=i/n, phi=t*Math.PI*2*turns; const strand=(i%2===0)?1:-1; const r=300+(strand*sep); o.position.set(Math.cos(phi)*r, (i-n/2)*spacing, Math.sin(phi)*r); o.lookAt(new THREE.Vector3(0,o.position.y,0)); targets.helix.push(o); } }
+    function createGridTargets(n){ const gx=5,gy=4,gz=10,gapX=260,gapY=200,gapZ=240; for(let i=0;i<n;i++){ const x=i%gx, y=Math.floor(i/gx)%gy, z=Math.floor(i/(gx*gy))%gz; const o=new THREE.Object3D(); o.position.set((x-(gx/2-0.5))*gapX,((gy/2-0.5)-y)*gapY,(z-(gz/2-0.5))*gapZ); targets.grid.push(o); } }
+
+    function transform(targetArray,duration=2000){ const now=performance.now(); for(let i=0;i<objects.length;i++){ const obj=objects[i]; const target=targetArray[i]||new THREE.Object3D(); obj.userData.startPos={...obj.position}; obj.userData.targetPos={...target.position}; obj.userData.startTime=now; obj.userData.duration=duration; obj.userData.targetRot={x:target.rotation.x,y:target.rotation.y,z:target.rotation.z}; } }
+
+    function transformTo(name){ switch(name){ case'table':transform(targets.table);break; case'sphere':transform(targets.sphere);break; case'helix':transform(targets.helix);break; case'grid':transform(targets.grid);break; } }
+
+    function initThree(){
+      if(animationId) cancelAnimationFrame(animationId);
+      const container=document.getElementById('container');
+      container.innerHTML='';
+      scene=new THREE.Scene();
+      camera=new THREE.PerspectiveCamera(40,window.innerWidth/window.innerHeight,1,10000);
+      camera.position.set(0,0,3000);
+      cssRenderer=new CSS3DRenderer();
+      cssRenderer.setSize(window.innerWidth,window.innerHeight);
+      cssRenderer.domElement.style.position='absolute';
+      container.appendChild(cssRenderer.domElement);
+      window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); cssRenderer.setSize(window.innerWidth,window.innerHeight); });
+      animate();
+    }
+
+    function updateObjects(){ const now=performance.now(); for(let i=0;i<objects.length;i++){ const obj=objects[i]; if(!obj.userData.startTime) continue; const t=(now-obj.userData.startTime)/obj.userData.duration; const dt=Math.min(1,t); obj.position.x=obj.userData.startPos.x+(obj.userData.targetPos.x-obj.userData.startPos.x)*easeOutCubic(dt); obj.position.y=obj.userData.startPos.y+(obj.userData.targetPos.y-obj.userData.startPos.y)*easeOutCubic(dt); obj.position.z=obj.userData.startPos.z+(obj.userData.targetPos.z-obj.userData.startPos.z)*easeOutCubic(dt); obj.rotation.x += (obj.userData.targetRot.x-obj.rotation.x)*0.08; obj.rotation.y += (obj.userData.targetRot.y-obj.rotation.y)*0.08; obj.rotation.z += (obj.userData.targetRot.z-obj.rotation.z)*0.08; } }
+    function easeOutCubic(t){ return (--t)*t*t+1; }
+    function animate(){
+      animationId=requestAnimationFrame(animate);
+      updateObjects();
+      // Keep camera fixed, no spinning
+      camera.position.set(0,0,3000);
+      camera.lookAt(scene.position);
+      cssRenderer.render(scene,camera);
+    }
+
+  </script>
+
+  <!-- Google libraries -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js" async defer></script>
+</body>
+</html>
